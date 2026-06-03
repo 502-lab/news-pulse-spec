@@ -1,0 +1,102 @@
+openapi: 3.0.0
+info:
+  title: Todo API
+  version: 1.0.0
+  description: Todo 앱 API 계약서
+
+servers:
+  - url: http://localhost:8080
+    description: 로컬
+  - url: https://api-dev.todo.com
+    description: dev 서버
+  - url: https://api.todo.com
+    description: prd 서버
+
+paths:
+  /todos:
+    get:
+      summary: Todo 목록 조회
+      tags: [Todo]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Todo"
+    post:
+      summary: Todo 생성
+      tags: [Todo]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TodoCreateRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Todo"
+
+  /todos/{id}:
+    put:
+      summary: Todo 수정
+      tags: [Todo]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TodoUpdateRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Todo"
+    delete:
+      summary: Todo 삭제
+      tags: [Todo]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: 삭제 완료
+
+components:
+  schemas:
+    Todo:
+      type: object
+      required: [id, title, done, createdAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        done: { type: boolean }
+        priority: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    TodoCreateRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        priority: { type: integer }
+
+    TodoUpdateRequest:
+      type: object
+      properties:
+        title: { type: string }
+        done: { type: boolean }
+        priority: { type: integer }
