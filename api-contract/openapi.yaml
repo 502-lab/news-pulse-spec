@@ -239,11 +239,13 @@ paths:
   /api/v1/auth/social/{provider}/callback:
     post:
       tags: [Auth - Social]
-      summary: 소셜 로그인 콜백 처리 (가입 또는 로그인)
+      summary: 소셜 로그인 콜백 처리 (기존 로그인 or 신규 pending)
       operationId: socialCallback
       description: |
-        provider로부터 받은 code와 state를 검증 후 가입 또는 로그인을 처리한다.
-        state 검증 실패 시 400. 신규 가입 시 consents·ageConfirmed 필수.
+        provider로부터 받은 code와 state를 검증 후 기존/신규 분기.
+        기존 유저: 200 isNew=false + account/tokens.
+        신규 유저: 202 isNew=true + pendingToken(10분) + 전체 활성 약관 목록.
+        code는 이 요청에서 소진됨. 신규 유저는 POST /complete로 가입 완료 필요.
       security: []
       parameters:
         - name: provider
@@ -260,19 +262,57 @@ paths:
               $ref: '#/components/schemas/SocialCallbackRequest'
       responses:
         '200':
-          description: 로그인 성공 (기존 계정)
+          description: 기존 소셜 계정 로그인 성공
           content:
             application/json:
               schema:
                 type: object
-                required: [account, tokens]
+                required: [isNew, account, tokens]
                 properties:
+                  isNew:
+                    type: boolean
+                    example: false
                   account:
                     $ref: '#/components/schemas/AccountSummary'
                   tokens:
                     $ref: '#/components/schemas/TokenPair'
+        '202':
+          description: 신규 유저 — pending-signup 토큰 발급. POST /complete로 가입 완료 필요.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialPendingSignupResponse'
+        '400':
+          description: state 검증 실패 (CSRF 의심) 또는 허용되지 않은 redirectUri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 동일 이메일로 이메일 계정 이미 존재
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/social/complete:
+    post:
+      tags: [Auth - Social]
+      summary: 소셜 신규 가입 완료 (약관 동의 + 계정 생성)
+      operationId: socialComplete
+      description: |
+        pendingToken과 약관 동의를 검증 후 계정 생성 + JWT 발급.
+        pendingToken TTL 10분. 필수 약관(SERVICE·PRIVACY) 미동의 또는 ageConfirmed=false 시 422.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SocialCompleteRequest'
+      responses:
         '201':
-          description: 가입 및 로그인 성공 (신규 계정)
+          description: 계정 생성 + 로그인 성공
           content:
             application/json:
               schema:
@@ -284,19 +324,19 @@ paths:
                   tokens:
                     $ref: '#/components/schemas/TokenPair'
         '400':
-          description: state 검증 실패 (CSRF 의심)
+          description: pendingToken 만료 또는 서명 오류
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: 동일 이메일로 이메일 계정 이미 존재
+          description: 이메일 충돌 (동시 가입 경합)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: 신규 가입 시 약관 미동의 또는 연령 미달
+          description: 필수 약관 미동의 또는 연령 미확인
           content:
             application/json:
               schema:
@@ -1112,16 +1152,41 @@ components:
           type: string
           nullable: true
           description: "Apple 최초 로그인 시 provider가 form_post로 전달하는 userInfo JSON. 이후 로그인에서는 생략."
+
+    SocialPendingSignupResponse:
+      type: object
+      description: 신규 소셜 유저 — 약관 동의 전 pending 상태. POST /auth/social/complete로 가입 완료 필요.
+      required: [isNew, pendingToken, requiredTerms]
+      properties:
+        isNew:
+          type: boolean
+          example: true
+        pendingToken:
+          type: string
+          description: "소셜 신원(provider·식별자·이메일)을 담은 단기 JWT (TTL 10분). 서명 검증 후 /complete에서 소비."
+        requiredTerms:
+          type: array
+          description: 유저에게 동의받아야 할 활성 약관 목록 (required·optional 모두 포함)
+          items:
+            $ref: '#/components/schemas/TermsVersion'
+
+    SocialCompleteRequest:
+      type: object
+      description: 소셜 신규 가입 완료 요청
+      required: [pendingToken, consents, ageConfirmed]
+      properties:
+        pendingToken:
+          type: string
+          description: 콜백 202 응답에서 받은 pending-signup 토큰 (TTL 10분)
         consents:
           type: array
-          nullable: true
-          description: 신규 가입 시 약관 동의 목록. 기존 계정 로그인 시 무시.
+          description: 약관 동의 목록 (필수 약관 SERVICE·PRIVACY agreed=true 포함 필수)
+          minItems: 1
           items:
             $ref: '#/components/schemas/ConsentInput'
         ageConfirmed:
           type: boolean
-          nullable: true
-          description: 신규 가입 시 연령 동의. 기존 계정 로그인 시 무시.
+          description: 만 14세 이상 동의 여부 (true 필수)
 
     # ── Password Reset ───────────────────────────────────────────────────────
     PasswordResetRequestBody:
