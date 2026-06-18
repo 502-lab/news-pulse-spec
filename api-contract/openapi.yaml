@@ -3,7 +3,7 @@ info:
   title: "OpenAPI definition"
   version: "v0"
 servers:
-- url: "http://localhost:33735"
+- url: "http://localhost:43647"
   description: "Generated server url"
 tags:
 - name: "Briefing"
@@ -440,7 +440,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseMapStringObject"
+                $ref: "#/components/schemas/ApiResponseSignupResponse"
   /api/v1/auth/refresh:
     post:
       tags:
@@ -595,7 +595,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseVoid"
+                $ref: "#/components/schemas/ApiResponseMapStringObject"
   /api/v1/auth/email-verification/request:
     post:
       tags:
@@ -1768,6 +1768,38 @@ components:
       - "consents"
       - "email"
       - "password"
+    ApiResponseSignupResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/SignupResponse"
+          description: "응답 데이터"
+    SignupResponse:
+      type: "object"
+      description: "회원가입 응답 — 이메일 인증 완료 전 임시 토큰만 반환"
+      properties:
+        pendingToken:
+          type: "string"
+          description: "이메일 인증 전용 임시 토큰 (15분 유효, /auth/email-verification/** 에서만 사\
+            용 가능)"
+        verificationEmailSent:
+          type: "boolean"
+          description: "인증 이메일 발송 성공 여부 (false여도 /email-verification/request 재요청 가\
+            능)"
     RefreshRequest:
       type: "object"
       properties:
