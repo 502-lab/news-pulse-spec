@@ -3,7 +3,7 @@ info:
   title: "OpenAPI definition"
   version: "v0"
 servers:
-- url: "http://localhost:36155"
+- url: "http://localhost:42901"
   description: "Generated server url"
 tags:
 - name: "Briefing"
