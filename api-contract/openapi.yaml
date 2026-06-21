@@ -3,17 +3,21 @@ info:
   title: "OpenAPI definition"
   version: "v0"
 servers:
-- url: "http://localhost:43647"
+- url: "http://localhost:36155"
   description: "Generated server url"
 tags:
 - name: "Briefing"
   description: "데일리 브리핑 TTS — 오늘의 뉴스 N건 음성 재생 큐"
 - name: "Onboarding"
   description: "사용자 온보딩 — 프로필·관심사·설정 일괄 저장"
+- name: "Topic Subscriptions"
+  description: "알림 토픽 구독 조회·교체"
 - name: "Admin"
   description: "관리자 전용 API. 추후 ROLE_ADMIN 인증 적용 예정 (spec 002)"
 - name: "TTS"
   description: "기사 TTS 생성 및 상태 조회"
+- name: "Admin Notifications"
+  description: "어드민 알림 수동 발송 API"
 - name: "Search"
   description: "기사 전문 검색 (pg_bigm 한국어 지원)"
 - name: "Terms"
@@ -22,10 +26,16 @@ tags:
   description: "음성 캐릭터 목록 조회"
 - name: "Password Reset"
   description: "비밀번호 재설정 3단계 흐름 (모두 인증 불필요)"
+- name: "Notifications"
+  description: "인앱 알림 조회·읽음 처리 API"
 - name: "Feed"
   description: "개인화 뉴스 피드"
 - name: "Me"
   description: "인증된 사용자 본인 정보 조회·수정"
+- name: "Device Tokens"
+  description: "FCM 디바이스 토큰 등록·삭제"
+- name: "Notification Settings"
+  description: "알림 설정 및 이메일 구독 관리 API"
 - name: "Article Detail"
   description: "기사 상세 조회 API"
 - name: "Article Feed"
@@ -35,6 +45,57 @@ tags:
 - name: "Saved Articles"
   description: "기사 저장 / 해제 / 목록 조회"
 paths:
+  /api/v1/me/topic-subscriptions:
+    get:
+      tags:
+      - "Topic Subscriptions"
+      summary: "토픽 구독 목록 조회"
+      description: "현재 사용자의 알림 토픽 구독 목록을 반환한다."
+      operationId: "getTopics"
+      responses:
+        "200":
+          description: "조회 성공"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTopicSubscriptionsResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTopicSubscriptionsResponse"
+    put:
+      tags:
+      - "Topic Subscriptions"
+      summary: "토픽 구독 교체 (replace-all)"
+      description: "기존 구독 목록을 전부 삭제하고 전달된 토픽 목록으로 교체한다. 빈 목록 전달 시 전체 구독 해제."
+      operationId: "replaceTopics"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopicSubscriptionsRequest"
+        required: true
+      responses:
+        "200":
+          description: "교체 완료"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTopicSubscriptionsResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTopicSubscriptionsResponse"
+        "422":
+          description: "요청 본문 유효성 오류"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTopicSubscriptionsResponse"
   /api/v1/me/reading-preference:
     get:
       tags:
@@ -121,6 +182,51 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseUserProfileResponse"
+  /api/v1/me/notification-settings:
+    get:
+      tags:
+      - "Notification Settings"
+      summary: "알림 설정 조회"
+      description: "현재 계정의 알림 채널별 수신 설정을 반환한다. DB에 저장된 값이 없으면 기본값(전부 true)을 반환한다."
+      operationId: "getSettings"
+      responses:
+        "200":
+          description: "성공"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationSettingsResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationSettingsResponse"
+    put:
+      tags:
+      - "Notification Settings"
+      summary: "알림 설정 변경"
+      description: "알림 채널별(push/email/rising/bias) 수신 여부를 업서트한다."
+      operationId: "updateSettings"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSettingsRequest"
+        required: true
+      responses:
+        "200":
+          description: "성공"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationSettingsResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationSettingsResponse"
   /api/v1/me/keywords:
     get:
       tags:
@@ -257,6 +363,45 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseBriefingSettingsResponse"
+  /api/v1/me/subscriptions/weekly-email:
+    post:
+      tags:
+      - "Notification Settings"
+      summary: "주간 이메일 구독"
+      description: "매주 월요일 발송되는 AI 뉴스 브리핑 주간 이메일을 구독한다. 이미 구독 중이면 409를 반환한다."
+      operationId: "subscribeWeeklyEmail"
+      responses:
+        "201":
+          description: "구독 성공"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseEmailSubscriptionResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseEmailSubscriptionResponse"
+        "409":
+          description: "이미 구독 중"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseEmailSubscriptionResponse"
+    delete:
+      tags:
+      - "Notification Settings"
+      summary: "주간 이메일 구독 해제"
+      description: "주간 이메일 구독을 해제한다. 구독 중이 아니면 404를 반환한다."
+      operationId: "unsubscribeWeeklyEmail"
+      responses:
+        "204":
+          description: "구독 해제 성공"
+        "401":
+          description: "미인증"
+        "404":
+          description: "구독 미존재"
   /api/v1/me/onboarding:
     post:
       tags:
@@ -290,6 +435,39 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
+  /api/v1/me/device-tokens:
+    post:
+      tags:
+      - "Device Tokens"
+      summary: "디바이스 토큰 등록"
+      description: "FCM 디바이스 토큰을 등록한다. 동일 token이 이미 존재하면 account_id·platform·updated_at을\
+        \ 갱신(upsert). 계정당 최대 5개 — 초과 시 가장 오래된 토큰이 자동 삭제된다."
+      operationId: "register"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceTokenRequest"
+        required: true
+      responses:
+        "201":
+          description: "등록 완료 (upsert)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDeviceTokenResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDeviceTokenResponse"
+        "422":
+          description: "요청 본문 유효성 오류"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDeviceTokenResponse"
   /api/v1/me/consents:
     get:
       tags:
@@ -830,6 +1008,100 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseTermsVersionResponse"
+  /api/v1/admin/notifications/send:
+    post:
+      tags:
+      - "Admin Notifications"
+      summary: "어드민 알림 수동 발송"
+      description: "대상(ALL / 특정 계정 목록 / 토픽 구독자)에게 시스템 알림을 비동기 enqueue한다. 발송 요청만 수락\
+        하고 실제 발송은 outbox processor가 처리한다."
+      operationId: "send"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminNotificationRequest"
+        required: true
+      responses:
+        "202":
+          description: "발송 요청 수락"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "403":
+          description: "ADMIN 권한 없음"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "422":
+          description: "요청 검증 실패"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+  /api/v1/me/notifications/{notificationId}/read:
+    patch:
+      tags:
+      - "Notifications"
+      summary: "알림 단건 읽음 처리"
+      description: "지정한 알림을 읽음(is_read=true)으로 표시한다. 본인 알림만 처리 가능 — 타인 알림 접근 시 404\
+        \ 반환."
+      operationId: "markRead"
+      parameters:
+      - name: "notificationId"
+        in: "path"
+        description: "읽음 처리할 알림 ID"
+        required: true
+        schema:
+          type: "integer"
+          format: "int64"
+      responses:
+        "200":
+          description: "읽음 처리 완료"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationResponse"
+        "404":
+          description: "알림 없음 또는 소유권 없음"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationResponse"
+  /api/v1/me/notifications/read-all:
+    patch:
+      tags:
+      - "Notifications"
+      summary: "알림 전체 읽음 처리"
+      description: "본인의 모든 미읽음 알림을 읽음 처리한다."
+      operationId: "markAllRead"
+      responses:
+        "200":
+          description: "전체 읽음 처리 완료"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
   /api/v1/voices:
     get:
       tags:
@@ -1002,6 +1274,54 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseOnboardingStatusResponse"
+  /api/v1/me/notifications:
+    get:
+      tags:
+      - "Notifications"
+      summary: "인앱 알림 목록 조회"
+      description: "페이지네이션으로 인앱 알림 목록을 반환한다. unread=true 시 읽지 않은 알림만 반환. 알림이 없으면 빈\
+        \ 배열 200 반환 (404 아님). created_at DESC 정렬."
+      operationId: "list_1"
+      parameters:
+      - name: "unread"
+        in: "query"
+        description: "읽지 않은 알림만 조회. 기본값 false"
+        required: false
+        schema:
+          type: "boolean"
+          default: false
+        example: false
+      - name: "page"
+        in: "query"
+        description: "페이지 번호 (0-based). 기본값 0"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 0
+        example: 0
+      - name: "size"
+        in: "query"
+        description: "페이지 크기. 기본값 20"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 20
+        example: 20
+      responses:
+        "200":
+          description: "성공 (빈 목록 포함)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageNotificationResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageNotificationResponse"
   /api/v1/feed:
     get:
       tags:
@@ -1271,8 +1591,81 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponsePipelineStatsResponse"
+  /api/v1/me/device-tokens/{tokenId}:
+    delete:
+      tags:
+      - "Device Tokens"
+      summary: "디바이스 토큰 삭제"
+      description: "등록된 FCM 디바이스 토큰을 삭제한다. 본인 토큰만 삭제 가능 — 타인 토큰 접근 시 404 반환."
+      operationId: "delete"
+      parameters:
+      - name: "tokenId"
+        in: "path"
+        description: "삭제할 토큰 ID"
+        required: true
+        schema:
+          type: "integer"
+          format: "int64"
+      responses:
+        "204":
+          description: "삭제 완료"
+        "401":
+          description: "미인증"
+        "404":
+          description: "토큰 없음 또는 소유권 없음"
 components:
   schemas:
+    TopicSubscriptionsRequest:
+      type: "object"
+      description: "토픽 구독 교체 요청 (replace-all)"
+      properties:
+        topics:
+          type: "array"
+          description: "구독할 토픽 목록 (BREAKING, BRIEFING, TTS_READY)"
+          example:
+          - "BREAKING"
+          - "BRIEFING"
+          items:
+            type: "string"
+            enum:
+            - "BREAKING"
+            - "BRIEFING"
+            - "TTS_READY"
+      required:
+      - "topics"
+    ApiResponseTopicSubscriptionsResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/TopicSubscriptionsResponse"
+          description: "응답 데이터"
+    TopicSubscriptionsResponse:
+      type: "object"
+      description: "토픽 구독 목록 응답"
+      properties:
+        topics:
+          type: "array"
+          description: "구독 중인 토픽 목록"
+          items:
+            type: "string"
+            enum:
+            - "BREAKING"
+            - "BRIEFING"
+            - "TTS_READY"
     ReadingPreferenceRequest:
       type: "object"
       description: "읽기 방식 수정 요청"
@@ -1402,6 +1795,66 @@ components:
         occupation:
           type: "string"
           description: "직업"
+    NotificationSettingsRequest:
+      type: "object"
+      description: "알림 설정 변경 요청"
+      properties:
+        pushEnabled:
+          type: "boolean"
+          description: "푸시 알림 수신 여부"
+          example: true
+        emailEnabled:
+          type: "boolean"
+          description: "이메일 알림 수신 여부"
+          example: true
+        risingEnabled:
+          type: "boolean"
+          description: "급상승 키워드 알림 수신 여부"
+          example: true
+        biasEnabled:
+          type: "boolean"
+          description: "편향 분석 알림 수신 여부"
+          example: true
+    ApiResponseNotificationSettingsResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/NotificationSettingsResponse"
+          description: "응답 데이터"
+    NotificationSettingsResponse:
+      type: "object"
+      description: "알림 설정 응답"
+      properties:
+        pushEnabled:
+          type: "boolean"
+          description: "푸시 알림 수신 여부"
+          example: true
+        emailEnabled:
+          type: "boolean"
+          description: "이메일 알림 수신 여부"
+          example: true
+        risingEnabled:
+          type: "boolean"
+          description: "급상승 키워드 알림 수신 여부"
+          example: true
+        biasEnabled:
+          type: "boolean"
+          description: "편향 분석 알림 수신 여부"
+          example: true
     FollowKeywordsRequest:
       type: "object"
       description: "팔로우 키워드 수정 요청"
@@ -1569,6 +2022,48 @@ components:
           type: "string"
           format: "date-time"
           description: "푸시 알림 동의 시각"
+    ApiResponseEmailSubscriptionResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/EmailSubscriptionResponse"
+          description: "응답 데이터"
+    EmailSubscriptionResponse:
+      type: "object"
+      description: "이메일 구독 상태 응답"
+      properties:
+        accountId:
+          type: "string"
+          format: "uuid"
+          description: "계정 UUID"
+        type:
+          type: "string"
+          description: "구독 타입"
+          enum:
+          - "WEEKLY_EMAIL"
+          example: "WEEKLY_EMAIL"
+        active:
+          type: "boolean"
+          description: "구독 활성 여부"
+          example: true
+        subscribedAt:
+          type: "string"
+          format: "date-time"
+          description: "구독 시작 시각"
     OnboardingRequest:
       type: "object"
       description: "온보딩 일괄 저장 요청"
@@ -1663,6 +2158,77 @@ components:
           example: "OK"
         data:
           description: "응답 데이터"
+    DeviceTokenRequest:
+      type: "object"
+      description: "FCM 디바이스 토큰 등록 요청"
+      properties:
+        token:
+          type: "string"
+          description: "FCM 디바이스 토큰"
+          example: "fcm-token-abc123"
+          minLength: 1
+        platform:
+          type: "string"
+          description: "디바이스 플랫폼 (IOS, ANDROID, WEB)"
+          enum:
+          - "IOS"
+          - "ANDROID"
+          - "WEB"
+          example: "IOS"
+      required:
+      - "platform"
+      - "token"
+    ApiResponseDeviceTokenResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/DeviceTokenResponse"
+          description: "응답 데이터"
+    DeviceTokenResponse:
+      type: "object"
+      description: "FCM 디바이스 토큰 응답"
+      properties:
+        id:
+          type: "integer"
+          format: "int64"
+          description: "토큰 ID"
+          example: 1
+        accountId:
+          type: "string"
+          format: "uuid"
+          description: "계정 ID"
+        token:
+          type: "string"
+          description: "FCM 토큰"
+        platform:
+          type: "string"
+          description: "디바이스 플랫폼"
+          enum:
+          - "IOS"
+          - "ANDROID"
+          - "WEB"
+        createdAt:
+          type: "string"
+          format: "date-time"
+          description: "등록 시각"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+          description: "마지막 갱신 시각"
     ConsentInput:
       type: "object"
       properties:
@@ -2097,6 +2663,109 @@ components:
         active:
           type: "boolean"
           description: "활성 여부"
+    AdminNotificationRequest:
+      type: "object"
+      description: "어드민 알림 발송 요청"
+      properties:
+        title:
+          type: "string"
+          description: "알림 제목"
+          example: "공지사항"
+          minLength: 1
+        body:
+          type: "string"
+          description: "알림 내용"
+          example: "서버 점검이 예정되어 있습니다."
+          minLength: 1
+        targetType:
+          type: "string"
+          description: "발송 대상 타입 (ALL / ACCOUNT_IDS / TOPIC_SUBSCRIBERS)"
+          enum:
+          - "ALL"
+          - "ACCOUNT_IDS"
+          - "TOPIC_SUBSCRIBERS"
+        accountIds:
+          type: "array"
+          description: "ACCOUNT_IDS 타입 시 발송 대상 accountId 목록 (nullable)"
+          items:
+            type: "string"
+            format: "uuid"
+        topic:
+          type: "string"
+          description: "TOPIC_SUBSCRIBERS 타입 시 토픽 (nullable)"
+          enum:
+          - "BREAKING"
+          - "BRIEFING"
+          - "TTS_READY"
+      required:
+      - "body"
+      - "targetType"
+      - "title"
+    ApiResponseNotificationResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/NotificationResponse"
+          description: "응답 데이터"
+    NotificationResponse:
+      type: "object"
+      description: "인앱 알림 응답"
+      properties:
+        id:
+          type: "integer"
+          format: "int64"
+          description: "알림 ID"
+          example: 1
+        type:
+          type: "string"
+          description: "알림 타입. BREAKING=속보, BRIEFING=AI브리핑, TTS_READY=TTS완료, SYSTEM=시\
+            스템"
+          enum:
+          - "BREAKING"
+          - "BRIEFING"
+          - "TTS_READY"
+          - "SYSTEM"
+          example: "BREAKING"
+        title:
+          type: "string"
+          description: "알림 제목"
+          example: "속보: 주요 뉴스"
+        body:
+          type: "string"
+          description: "알림 본문. null 가능"
+          example: "주요 기사 내용 요약"
+        referenceId:
+          type: "string"
+          description: "참조 ID (기사 ID, TTS ID 등). null 가능"
+          example: "article-123"
+        isRead:
+          type: "boolean"
+          description: "읽음 여부"
+          example: false
+        createdAt:
+          type: "string"
+          format: "date-time"
+          description: "생성 시각 (UTC)"
+          example: "2026-06-18T00:00:00Z"
+        expiresAt:
+          type: "string"
+          format: "date-time"
+          description: "만료 시각 (생성 후 90일, UTC)"
+          example: "2026-09-16T00:00:00Z"
     ApiResponseListVoiceResponse:
       type: "object"
       description: "공통 API 응답 래퍼"
@@ -2402,6 +3071,85 @@ components:
         personalizationActive:
           type: "boolean"
           description: "개인화 활성화 여부"
+    ApiResponsePageNotificationResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/PageNotificationResponse"
+          description: "응답 데이터"
+    PageNotificationResponse:
+      type: "object"
+      properties:
+        totalElements:
+          type: "integer"
+          format: "int64"
+        totalPages:
+          type: "integer"
+          format: "int32"
+        size:
+          type: "integer"
+          format: "int32"
+        content:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/NotificationResponse"
+        number:
+          type: "integer"
+          format: "int32"
+        last:
+          type: "boolean"
+        first:
+          type: "boolean"
+        numberOfElements:
+          type: "integer"
+          format: "int32"
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        empty:
+          type: "boolean"
+    PageableObject:
+      type: "object"
+      properties:
+        offset:
+          type: "integer"
+          format: "int64"
+        paged:
+          type: "boolean"
+        pageNumber:
+          type: "integer"
+          format: "int32"
+        pageSize:
+          type: "integer"
+          format: "int32"
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        unpaged:
+          type: "boolean"
+    SortObject:
+      type: "object"
+      properties:
+        empty:
+          type: "boolean"
+        sorted:
+          type: "boolean"
+        unsorted:
+          type: "boolean"
     ApiResponseListConsentRecordResponse:
       type: "object"
       description: "공통 API 응답 래퍼"
