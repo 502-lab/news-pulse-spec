@@ -3,13 +3,15 @@ info:
   title: "OpenAPI definition"
   version: "v0"
 servers:
-- url: "http://localhost:38279"
+- url: "http://localhost:41939"
   description: "Generated server url"
 tags:
 - name: "Briefing"
   description: "데일리 브리핑 TTS — 오늘의 뉴스 N건 음성 재생 큐"
 - name: "Onboarding"
   description: "사용자 온보딩 — 프로필·관심사·설정 일괄 저장"
+- name: "Trends"
+  description: "트렌드 조회 API (공개)"
 - name: "Topic Subscriptions"
   description: "알림 토픽 구독 조회·교체"
 - name: "Admin"
@@ -1159,6 +1161,106 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseListVoiceResponse"
+  /api/v1/trends/wow:
+    get:
+      tags:
+      - "Trends"
+      summary: "WoW(주간 대비) 급상승"
+      description: "이번 주(최근 7일) vs 지난주(7~14일 전) 급상승 키워드. 공개(인증 불필요). 정렬은 평활비 (cur+1)/(prev+1)\
+        \ 기반, deltaPct는 raw %. prev=0 → deltaPct null + isNew. cur<2 제외. 24h Top5와\
+        의 구분점은 주간 윈도우 경계."
+      operationId: "getWow"
+      responses:
+        "200":
+          description: "성공(데이터 없으면 빈 목록)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListTrendKeywordResponse"
+  /api/v1/trends/wordcloud:
+    get:
+      tags:
+      - "Trends"
+      summary: "워드클라우드"
+      description: "윈도우 내 키워드별 가중치(weight = 등장 기사 수 합). 공개. min-freq(2건 미만) 제외."
+      operationId: "getWordcloud"
+      parameters:
+      - name: "windowHours"
+        in: "query"
+        description: "윈도우 시간(기본 24h)"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 24
+      responses:
+        "200":
+          description: "성공(빈 윈도우면 빈 배열)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListWordcloudItemResponse"
+  /api/v1/trends/keywords/top5:
+    get:
+      tags:
+      - "Trends"
+      summary: "지금 뜨는 키워드 Top5"
+      description: "최근 24시간 윈도우 기준 급상승 키워드 상위 5개. 공개(인증 불필요). 정렬은 평활비 기반, deltaPct는\
+        \ raw %(prev=0이면 null+isNew). 노이즈컷: 등장 기사 2건 미만 제외."
+      operationId: "getTop5"
+      parameters:
+      - name: "category"
+        in: "query"
+        description: "카테고리 필터(미지정 시 전체). 분류 실패 기사는 OTHER로 집계"
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "성공(데이터 없으면 빈 목록)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListTrendKeywordResponse"
+  /api/v1/trends/issues:
+    get:
+      tags:
+      - "Trends"
+      summary: "이슈(co-occurrence 클러스터)"
+      description: "최신 이슈 스냅샷(관련 기사 묶음 + 대표 키워드 3 + 증감). 공개. 매 집계 재산출(스냅샷 전량 교체)되어\
+        \ cross-run 안정 ID는 없다."
+      operationId: "getIssues"
+      responses:
+        "200":
+          description: "성공(이슈 없으면 빈 목록)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListIssueResponse"
+  /api/v1/trends/heatmap:
+    get:
+      tags:
+      - "Trends"
+      summary: "히트맵 (시간버킷 × 카테고리)"
+      description: "시간 슬롯 × 카테고리 격자의 기사 볼륨(intensity = DISTINCT 기사 수). 공개. per-term\
+        \ SUM이 아닌 DISTINCT 기사 수(과대계상 방지)."
+      operationId: "getHeatmap"
+      parameters:
+      - name: "windowHours"
+        in: "query"
+        description: "윈도우 시간(기본 24h)"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 24
+      responses:
+        "200":
+          description: "성공(빈 윈도우면 빈 배열)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListHeatmapCellResponse"
   /api/v1/terms:
     get:
       tags:
@@ -2958,6 +3060,175 @@ components:
         previewUrl:
           type: "string"
           description: "미리듣기 정적 샘플 URL (CDN). 미설정 시 null."
+    ApiResponseListTrendKeywordResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          type: "array"
+          description: "응답 데이터"
+          items:
+            $ref: "#/components/schemas/TrendKeywordResponse"
+    TrendKeywordResponse:
+      type: "object"
+      description: "트렌드 키워드 항목 (Top5/WoW). slots[] 시계열은 MVP 후순위/deferred — FR-005."
+      properties:
+        term:
+          type: "string"
+          description: "키워드"
+          example: "금리"
+        count:
+          type: "integer"
+          format: "int64"
+          description: "윈도우 내 등장 기사 수 합"
+          example: 12
+        deltaPct:
+          type: "number"
+          format: "double"
+          description: "raw 증감률 %((cur-prev)/prev). prev=0이면 null"
+          example: 50.0
+        isNew:
+          type: "boolean"
+          description: "직전 윈도우 0건 신규 키워드"
+          example: false
+    ApiResponseListWordcloudItemResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          type: "array"
+          description: "응답 데이터"
+          items:
+            $ref: "#/components/schemas/WordcloudItemResponse"
+    WordcloudItemResponse:
+      type: "object"
+      description: "워드클라우드 항목. weight = 윈도우 내 term별 article_count 합(term-scoped, 과\
+        대계상 없음)."
+      properties:
+        term:
+          type: "string"
+          description: "키워드"
+          example: "금리"
+        weight:
+          type: "integer"
+          format: "int64"
+          description: "가중치 = 윈도우 내 등장 기사 수 합"
+          example: 12
+    ApiResponseListIssueResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          type: "array"
+          description: "응답 데이터"
+          items:
+            $ref: "#/components/schemas/IssueResponse"
+    IssueResponse:
+      type: "object"
+      description: "이슈(co-occurrence 클러스터). 매 집계 재산출되며 cross-run 안정 ID는 없다."
+      properties:
+        keywords:
+          type: "array"
+          description: "대표 키워드(top3)"
+          example:
+          - "금리"
+          - "인상"
+          - "경제"
+          items:
+            type: "string"
+        articleIds:
+          type: "array"
+          description: "관련 기사 id 묶음"
+          items:
+            type: "integer"
+            format: "int64"
+        delta:
+          type: "number"
+          format: "double"
+          description: "증감(멤버 키워드 WoW delta 평균). 산출 불가면 null"
+        clusteringMethod:
+          type: "string"
+          description: "클러스터링 방식"
+          example: "CO_OCCURRENCE"
+    ApiResponseListHeatmapCellResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          type: "array"
+          description: "응답 데이터"
+          items:
+            $ref: "#/components/schemas/HeatmapCellResponse"
+    HeatmapCellResponse:
+      type: "object"
+      description: "히트맵 셀 (시간버킷 × 카테고리). intensity = 해당 슬롯·카테고리의 DISTINCT 기사 수(기사\
+        \ 볼륨)."
+      properties:
+        slotStart:
+          type: "string"
+          format: "date-time"
+          description: "시간 슬롯 시작(시간 버킷, UTC)"
+        category:
+          type: "string"
+          description: "카테고리(분류 실패는 OTHER)"
+          example: "POLITICS"
+        intensity:
+          type: "integer"
+          format: "int64"
+          description: "기사 볼륨 = DISTINCT 기사 수(per-term SUM 아님)"
+          example: 12
     ApiResponseTermsContentResponse:
       type: "object"
       description: "공통 API 응답 래퍼"
