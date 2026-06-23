@@ -3,7 +3,7 @@ info:
   title: "OpenAPI definition"
   version: "v0"
 servers:
-- url: "http://localhost:41939"
+- url: "http://localhost:38243"
   description: "Generated server url"
 tags:
 - name: "Briefing"
@@ -3532,9 +3532,9 @@ components:
         number:
           type: "integer"
           format: "int32"
-        last:
-          type: "boolean"
         first:
+          type: "boolean"
+        last:
           type: "boolean"
         numberOfElements:
           type: "integer"
