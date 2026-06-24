@@ -3,7 +3,7 @@ info:
   title: "OpenAPI definition"
   version: "v0"
 servers:
-- url: "http://localhost:35937"
+- url: "http://localhost:40539"
   description: "Generated server url"
 tags:
 - name: "Onboarding"
