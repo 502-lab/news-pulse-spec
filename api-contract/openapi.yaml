@@ -3,13 +3,15 @@ info:
   title: "OpenAPI definition"
   version: "v0"
 servers:
-- url: "http://localhost:37835"
+- url: "http://localhost:37211"
   description: "Generated server url"
 tags:
 - name: "Onboarding"
   description: "사용자 온보딩 — 프로필·관심사·설정 일괄 저장"
 - name: "Topic Subscriptions"
   description: "알림 토픽 구독 조회·교체"
+- name: "Read Tracking"
+  description: "내 읽은수·조회 이력 API (009)"
 - name: "Admin"
   description: "관리자 전용 API. 추후 ROLE_ADMIN 인증 적용 예정 (spec 002)"
 - name: "TTS"
@@ -1850,6 +1852,64 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseSavedArticleListResponse"
+  /api/v1/me/read-history:
+    get:
+      tags:
+      - "Read Tracking"
+      summary: "내 조회 이력 조회"
+      description: "인증 사용자의 조회 이력을 최신순으로 반환합니다. 같은 기사를 여러 번 조회해도 이력엔 1건(article 기준\
+        \ 최신 1건)만 노출됩니다. 커서 페이지네이션. 본인 데이터만."
+      operationId: "readHistory"
+      parameters:
+      - name: "cursor"
+        in: "query"
+        description: "이전 응답의 nextCursor 값(최초 호출 시 생략)"
+        required: false
+        schema:
+          type: "string"
+      - name: "size"
+        in: "query"
+        description: "페이지 크기 (1~50, 기본 20)"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 20
+          maximum: 50
+          minimum: 1
+      responses:
+        "200":
+          description: "성공"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReadHistoryListResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReadHistoryListResponse"
+  /api/v1/me/read-count:
+    get:
+      tags:
+      - "Read Tracking"
+      summary: "내 읽은 기사 수 조회"
+      description: "인증 사용자가 읽은 고유 기사 수(읽은수, distinct article)를 반환합니다. 본인 데이터만."
+      operationId: "readCount"
+      responses:
+        "200":
+          description: "성공"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReadCountResponse"
+        "401":
+          description: "미인증"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReadCountResponse"
   /api/v1/me/onboarding/status:
     get:
       tags:
@@ -2149,7 +2209,8 @@ paths:
       - "Article Detail"
       summary: "기사 상세 조회"
       description: "기사 ID로 상세 정보와 요약 슬롯(brief / balanced / deep)을 반환합니다. deep 요약은\
-        \ 최초 상세 조회 시 lazy 생성되므로 첫 요청에서는 status가 PENDING일 수 있습니다."
+        \ 최초 상세 조회 시 lazy 생성되므로 첫 요청에서는 status가 PENDING일 수 있습니다. 인증 사용자의 조회는 best-effort로\
+        \ 기록됩니다(009, 30분 디바운스). 기록 실패는 상세 응답에 영향 없음."
       operationId: "getDetail"
       parameters:
       - name: "id"
@@ -4460,6 +4521,86 @@ components:
           type: "boolean"
           description: "다음 페이지 존재 여부"
           example: false
+    ApiResponseReadHistoryListResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/ReadHistoryListResponse"
+          description: "응답 데이터"
+    ReadHistoryItemResponse:
+      type: "object"
+      description: "조회 이력 항목(article 기준 최신 1건)"
+      properties:
+        articleId:
+          type: "integer"
+          format: "int64"
+          description: "기사 ID"
+          example: 12345
+        title:
+          type: "string"
+          description: "기사 제목"
+        lastViewedAt:
+          type: "string"
+          format: "date-time"
+          description: "가장 최근 조회 시각(UTC)"
+    ReadHistoryListResponse:
+      type: "object"
+      description: "조회 이력 페이지"
+      properties:
+        items:
+          type: "array"
+          description: "이력 항목(최신순)"
+          items:
+            $ref: "#/components/schemas/ReadHistoryItemResponse"
+        nextCursor:
+          type: "string"
+          description: "다음 페이지 커서(없으면 null). 다음 요청의 cursor로 전달"
+        hasNext:
+          type: "boolean"
+          description: "다음 페이지 존재 여부"
+    ApiResponseReadCountResponse:
+      type: "object"
+      description: "공통 API 응답 래퍼"
+      properties:
+        code:
+          type: "integer"
+          format: "int32"
+          description: "HTTP 상태 코드"
+          example: 200
+        status:
+          type: "string"
+          description: "응답 상태"
+          example: "success"
+        message:
+          type: "string"
+          description: "응답 메시지"
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/ReadCountResponse"
+          description: "응답 데이터"
+    ReadCountResponse:
+      type: "object"
+      description: "내 읽은 기사 수(읽은수)"
+      properties:
+        readCount:
+          type: "integer"
+          format: "int64"
+          description: "읽은 고유 기사 수(distinct article)"
+          example: 42
     ApiResponseOnboardingStatusResponse:
       type: "object"
       description: "공통 API 응답 래퍼"
@@ -4529,9 +4670,9 @@ components:
         number:
           type: "integer"
           format: "int32"
-        last:
-          type: "boolean"
         first:
+          type: "boolean"
+        last:
           type: "boolean"
         numberOfElements:
           type: "integer"
@@ -4548,8 +4689,6 @@ components:
         offset:
           type: "integer"
           format: "int64"
-        unpaged:
-          type: "boolean"
         paged:
           type: "boolean"
         pageNumber:
@@ -4560,6 +4699,8 @@ components:
           format: "int32"
         sort:
           $ref: "#/components/schemas/SortObject"
+        unpaged:
+          type: "boolean"
     SortObject:
       type: "object"
       properties:
@@ -5142,9 +5283,9 @@ components:
         number:
           type: "integer"
           format: "int32"
-        last:
-          type: "boolean"
         first:
+          type: "boolean"
+        last:
           type: "boolean"
         numberOfElements:
           type: "integer"
@@ -5669,9 +5810,9 @@ components:
         number:
           type: "integer"
           format: "int32"
-        last:
-          type: "boolean"
         first:
+          type: "boolean"
+        last:
           type: "boolean"
         numberOfElements:
           type: "integer"
